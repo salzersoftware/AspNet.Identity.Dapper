@@ -1,7 +1,7 @@
-﻿using Microsoft.AspNet.Identity;
+﻿using AspNet.Identity.Dapper.Connection.Interfaces;
 using Dapper;
+using Microsoft.AspNet.Identity;
 using System.Collections.Generic;
-using System.Data;
 using System.Linq;
 
 namespace AspNet.Identity.Dapper
@@ -11,15 +11,11 @@ namespace AspNet.Identity.Dapper
     /// </summary>
     public class UserLoginsTable
     {
-        private DbManager db;
+        private IDbConnectionFactory DbConnectionFactory { get; }
 
-        /// <summary>
-        /// Constructor that takes a DbManager instance 
-        /// </summary>
-        /// <param name="database"></param>
-        public UserLoginsTable(DbManager database)
+        public UserLoginsTable(IDbConnectionFactory dbConnectionFactory)
         {
-            db = database;
+            DbConnectionFactory = dbConnectionFactory;
         }
 
         /// <summary>
@@ -30,16 +26,20 @@ namespace AspNet.Identity.Dapper
         /// <returns></returns>
         public void Delete(IdentityMember member, UserLoginInfo login)
         {
-            db.Connection.Execute(@"Delete from MemberLogin 
+            using (var connection = DbConnectionFactory.GetOpenConnection())
+            {
+                connection.Execute(@"
+                    Delete from MemberLogin 
                     where UserId = @userId 
                     and LoginProvider = @loginProvider 
                     and ProviderKey = @providerKey",
-                new 
-                {   
-                    userId=member.Id,
-                    loginProvider=login.LoginProvider,
-                    providerKey=login.ProviderKey
+                new
+                {
+                    userId = member.Id,
+                    loginProvider = login.LoginProvider,
+                    providerKey = login.ProviderKey
                 });
+            }
         }
 
         /// <summary>
@@ -49,8 +49,10 @@ namespace AspNet.Identity.Dapper
         /// <returns></returns>
         public void Delete(int userId)
         {
-            db.Connection.Execute(@"Delete from MemberLogin 
-                    where UserId = @userId", new { userId = userId });
+            using (var connection = DbConnectionFactory.GetOpenConnection())
+            {
+                connection.Execute(@"Delete from MemberLogin where UserId = @userId", new { userId = userId });
+            }
         }
 
         /// <summary>
@@ -61,15 +63,18 @@ namespace AspNet.Identity.Dapper
         /// <returns></returns>
         public void Insert(IdentityMember member, UserLoginInfo login)
         {
-            db.Connection.Execute(@"Insert into MemberLogin 
+            using (var connection = DbConnectionFactory.GetOpenConnection())
+            {
+                connection.Execute(@"Insert into MemberLogin 
                 (LoginProvider, ProviderKey, UserId) 
-                values (@loginProvider, @providerKey, @userId)", 
+                values (@loginProvider, @providerKey, @userId)",
                     new
                     {
-                        loginProvider=login.LoginProvider,
-                        providerKey=login.ProviderKey,
-                        userId=member.Id
+                        loginProvider = login.LoginProvider,
+                        providerKey = login.ProviderKey,
+                        userId = member.Id
                     });
+            }
         }
 
         /// <summary>
@@ -79,13 +84,16 @@ namespace AspNet.Identity.Dapper
         /// <returns></returns>
         public int FindUserIdByLogin(UserLoginInfo MemberLogin)
         {
-            return db.Connection.ExecuteScalar<int>(@"Select UserId from MemberLogin 
+            using (var connection = DbConnectionFactory.GetOpenConnection())
+            {
+                return connection.ExecuteScalar<int>(@"Select UserId from MemberLogin 
                 where LoginProvider = @loginProvider and ProviderKey = @providerKey",
                         new 
                         {   
                             loginProvider = MemberLogin.LoginProvider,
                             providerKey=MemberLogin.ProviderKey
                         });
+            }
         }
 
         /// <summary>
@@ -95,8 +103,11 @@ namespace AspNet.Identity.Dapper
         /// <returns></returns>
         public List<UserLoginInfo> FindByUserId(int memberId)
         {
-            return db.Connection.Query<UserLoginInfo>("Select * from MemberLogin where MemberId = @memberId", new {memberId=memberId })
+            using (var connection = DbConnectionFactory.GetOpenConnection())
+            {
+                return connection.Query<UserLoginInfo>("Select * from MemberLogin where MemberId = @memberId", new { memberId = memberId })
                 .ToList();
+            }
         }
     }
 }

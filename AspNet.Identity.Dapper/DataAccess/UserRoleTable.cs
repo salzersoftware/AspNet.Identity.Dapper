@@ -1,7 +1,6 @@
-﻿using Dapper;
-using System;
+﻿using AspNet.Identity.Dapper.Connection.Interfaces;
+using Dapper;
 using System.Collections.Generic;
-using System.Data;
 using System.Linq;
 
 namespace AspNet.Identity.Dapper
@@ -11,15 +10,11 @@ namespace AspNet.Identity.Dapper
     /// </summary>
     public class UserRolesTable
     {
-        private DbManager db;
+        private IDbConnectionFactory DbConnectionFactory { get; }
 
-        /// <summary>
-        /// Constructor that takes a DbManager instance 
-        /// </summary>
-        /// <param name="database"></param>
-        public UserRolesTable(DbManager database)
+        public UserRolesTable(IDbConnectionFactory dbConnectionFactory)
         {
-            db = database;
+            DbConnectionFactory = dbConnectionFactory;
         }
 
         /// <summary>
@@ -29,8 +24,11 @@ namespace AspNet.Identity.Dapper
         /// <returns></returns>
         public List<string> FindByUserId(int memberId)
         {
-            return db.Connection.Query<string>("Select Role.Name from MemberRole, Role where MemberRole.MemberId=@MemberId and MemberRole.RoleId = Role.Id", new{MemberId=memberId} )
+            using (var connection = DbConnectionFactory.GetOpenConnection())
+            {
+                return connection.Query<string>("Select Role.Name from MemberRole, Role where MemberRole.MemberId=@MemberId and MemberRole.RoleId = Role.Id", new { MemberId = memberId })
                 .ToList();
+            }
         }
 
         /// <summary>
@@ -40,7 +38,10 @@ namespace AspNet.Identity.Dapper
         /// <returns></returns>
         public void Delete(int memberId)
         {
-            db.Connection.Execute(@"Delete from MemberRole where Id = @MemberId", new { MemberId = memberId });
+            using (var connection = DbConnectionFactory.GetOpenConnection())
+            {
+                connection.Execute(@"Delete from MemberRole where Id = @MemberId", new { MemberId = memberId });
+            }
         }
 
         /// <summary>
@@ -51,8 +52,11 @@ namespace AspNet.Identity.Dapper
         /// <returns></returns>
         public void Insert(IdentityMember member, int roleId)
         {
-            db.Connection.Execute(@"Insert into AspNetUserRoles (UserId, RoleId) values (@userId, @roleId",
+            using (var connection = DbConnectionFactory.GetOpenConnection())
+            {
+                connection.Execute(@"Insert into AspNetUserRoles (UserId, RoleId) values (@userId, @roleId",
                 new { userId = member.Id, roleId = roleId });
+            }
         }
     }
 }

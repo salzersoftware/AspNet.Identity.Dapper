@@ -1,15 +1,10 @@
-﻿using Microsoft.AspNet.Identity;
+﻿using AspNet.Identity.Dapper.Connection.Interfaces;
+using Microsoft.AspNet.Identity;
 using System;
-using System.Collections.Generic;
 using System.Linq;
-using System.Security.Claims;
 using System.Threading.Tasks;
-using Dapper;
-using System.Data;
-using System.Data.SqlClient;
-using System.Configuration;
 
-namespace AspNet.Identity.Dapper
+namespace AspNet.Identity.Dapper.Store
 {
     /// <summary>
     /// Class that implements the key ASP.NET Identity role store iterfaces
@@ -17,44 +12,24 @@ namespace AspNet.Identity.Dapper
     public class RoleStore<TRole> : IQueryableRoleStore<TRole,int>
         where TRole : IdentityRole
     {
-        private RoleTable roleTable;
-        public DbManager Database { get; private set; }
-        public IQueryable<TRole> Roles
-        {
-            get
-            {
-                throw new NotImplementedException();
-            }
-        }
+        private IDbConnectionFactory DbConnectionFactory { get; }
+        private RoleTable RoleTable { get; }
+        public IQueryable<TRole> Roles { get { throw new NotImplementedException(); } }
 
-
-        /// <summary>
-        /// Default constructor that initializes a new database
-        /// instance using the Default Connection string
-        /// </summary>
-        public RoleStore()
+        public RoleStore(IDbConnectionFactory dbConnectionFactory)
         {
-            new RoleStore<TRole>(new DbManager(ConfigurationManager.ConnectionStrings["DefaultConnection"].ConnectionString));
-        }
-
-        /// <summary>
-        /// Constructor that takes a dbmanager as argument 
-        /// </summary>
-        /// <param name="database"></param>
-        public RoleStore(DbManager database)
-        {
-            Database = database;
-            roleTable = new RoleTable(database);
+            DbConnectionFactory = dbConnectionFactory;
+            RoleTable = new RoleTable(dbConnectionFactory);
         }
 
         public Task CreateAsync(TRole role)
         {
             if (role == null)
             {
-                throw new ArgumentNullException("role");
+                throw new ArgumentNullException(nameof(role));
             }
 
-            roleTable.Insert(role);
+            RoleTable.Insert(role);
 
             return Task.FromResult<object>(null);
         }
@@ -63,24 +38,24 @@ namespace AspNet.Identity.Dapper
         {
             if (role == null)
             {
-                throw new ArgumentNullException("user");
+                throw new ArgumentNullException(nameof(role));
             }
 
-            roleTable.Delete(role.Id);
+            RoleTable.Delete(role.Id);
 
             return Task.FromResult<Object>(null);
         }
 
         public Task<TRole> FindByIdAsync(int roleId)
         {
-            TRole result = roleTable.GetRoleById(roleId) as TRole;
+            TRole result = RoleTable.GetRoleById(roleId) as TRole;
 
             return Task.FromResult<TRole>(result);
         }
 
         public Task<TRole> FindByNameAsync(string roleName)
         {
-            TRole result = roleTable.GetRoleByName(roleName) as TRole;
+            TRole result = RoleTable.GetRoleByName(roleName) as TRole;
 
             return Task.FromResult<TRole>(result);
         }
@@ -89,21 +64,17 @@ namespace AspNet.Identity.Dapper
         {
             if (role == null)
             {
-                throw new ArgumentNullException("user");
+                throw new ArgumentNullException(nameof(role));
             }
 
-            roleTable.Update(role);
+            RoleTable.Update(role);
 
             return Task.FromResult<Object>(null);
         }
 
         public void Dispose()
         {
-            if (Database != null)
-            {
-                Database.Dispose();
-                Database = null;
-            }
+            // Nothing to dispose.
         }
 
     }

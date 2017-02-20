@@ -10,6 +10,8 @@ using Microsoft.Owin;
 using Microsoft.Owin.Security;
 using Web.Models;
 using AspNet.Identity.Dapper;
+using ConsumerApp.Database.Connections;
+using System.Configuration;
 
 namespace Web
 {
@@ -41,13 +43,11 @@ namespace Web
 
         public static ApplicationUserManager Create(IdentityFactoryOptions<ApplicationUserManager> options, IOwinContext context) 
         {
-            //var manager = new ApplicationUserManager(
-                //new UserStore<AppMember>(
-                    //context.Get<ApplicationDbContext>()));
-
             var manager = new ApplicationUserManager(
                 new UserStore<AppMember>(
-                    context.Get<ApplicationDbContext>() as DbManager));
+                    new SqlConnectionFactory(ConfigurationManager.ConnectionStrings["DefaultConnection"].ConnectionString)
+                    )
+                );
             
             // Configure validation logic for usernames
             manager.UserValidator = new UserValidator<AppMember,int>(manager)

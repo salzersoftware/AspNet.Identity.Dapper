@@ -1,9 +1,5 @@
-﻿using Dapper;
-using System;
-using System.Collections.Generic;
-using System.Data;
-using System.Security.Claims;
-using System.Linq;
+﻿using AspNet.Identity.Dapper.Connection.Interfaces;
+using Dapper;
 
 namespace AspNet.Identity.Dapper
 {
@@ -12,14 +8,11 @@ namespace AspNet.Identity.Dapper
     /// </summary>
     public class RoleTable
     {
-        private DbManager db;
-        /// <summary>
-        /// Constructor that takes a DbManager instance 
-        /// </summary>
-        /// <param name="database"></param>
-        public RoleTable(DbManager database)
+        private IDbConnectionFactory DbConnectionFactory { get; }
+
+        public RoleTable(IDbConnectionFactory dbConnectionFactory)
         {
-            db = database;
+            DbConnectionFactory = dbConnectionFactory;
         }
 
         /// <summary>
@@ -29,7 +22,10 @@ namespace AspNet.Identity.Dapper
         /// <returns></returns>
         public void Delete(int roleId)
         {
-            db.Connection.Execute(@"Delete from Role where Id = @id", new { id = roleId });
+            using (var connection = DbConnectionFactory.GetOpenConnection())
+            {
+                connection.Execute(@"Delete from Role where Id = @id", new { id = roleId });
+            }                
         }
 
         /// <summary>
@@ -39,8 +35,10 @@ namespace AspNet.Identity.Dapper
         /// <returns></returns>
         public void Insert(IdentityRole role)
         {
-            db.Connection.Execute(@"Insert into Role (Name) values (@name)",
-                new {name=role.Name });
+            using (var connection = DbConnectionFactory.GetOpenConnection())
+            {
+                connection.Execute(@"Insert into Role (Name) values (@name)", new { name = role.Name });
+            }
         }
 
         /// <summary>
@@ -50,7 +48,10 @@ namespace AspNet.Identity.Dapper
         /// <returns>Role name</returns>
         public string GetRoleName(int roleId)
         {
-            return db.Connection.ExecuteScalar<string>("Select Name from Role where Id=@id", new {id=roleId });
+            using (var connection = DbConnectionFactory.GetOpenConnection())
+            {
+                return connection.ExecuteScalar<string>("Select Name from Role where Id=@id", new { id = roleId });
+            }                
         }
 
         /// <summary>
@@ -60,7 +61,10 @@ namespace AspNet.Identity.Dapper
         /// <returns>Role's Id</returns>
         public int GetRoleId(string roleName)
         {
-            return db.Connection.ExecuteScalar<int>("Select Id from Role where Name=@name", new {name=roleName });
+            using (var connection = DbConnectionFactory.GetOpenConnection())
+            {
+                return connection.ExecuteScalar<int>("Select Id from Role where Name=@name", new { name = roleName });
+            }                
         }
 
         /// <summary>
@@ -101,17 +105,21 @@ namespace AspNet.Identity.Dapper
 
         public void Update(IdentityRole role)
         {
-            db.Connection
-            .Execute(@"
+            using (var connection = DbConnectionFactory.GetOpenConnection())
+            {
+                connection.Execute(@"
                     UPDATE Role
                     SET
                         Name = @name
                     WHERE
-                        Id = @id", 
-                    new {
-                        name=role.Name,
-                        id=role.Id 
-                    });
+                        Id = @id",
+                    new
+                    {
+                        name = role.Name,
+                        id = role.Id
+                    }
+                );
+            }
         }
     }
 }

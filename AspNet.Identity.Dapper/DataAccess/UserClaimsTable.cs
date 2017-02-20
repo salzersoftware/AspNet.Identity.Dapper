@@ -1,9 +1,6 @@
-﻿using Dapper;
-using System;
-using System.Collections.Generic;
-using System.Data;
+﻿using AspNet.Identity.Dapper.Connection.Interfaces;
+using Dapper;
 using System.Security.Claims;
-using System.Linq;
 
 namespace AspNet.Identity.Dapper
 {
@@ -12,15 +9,11 @@ namespace AspNet.Identity.Dapper
     /// </summary>
     public class UserClaimsTable
     {
-        private DbManager db;
+        private IDbConnectionFactory DbConnectionFactory { get; }
 
-        /// <summary>
-        /// Constructor that takes a DbManager instance 
-        /// </summary>
-        /// <param name="database"></param>
-        public UserClaimsTable(DbManager database)
+        public UserClaimsTable(IDbConnectionFactory dbConnectionFactory)
         {
-            db = database;
+            DbConnectionFactory = dbConnectionFactory;
         }
 
         /// <summary>
@@ -32,10 +25,13 @@ namespace AspNet.Identity.Dapper
         {
            ClaimsIdentity claims = new ClaimsIdentity();
 
-           foreach (var c in db.Connection.Query("Select * from MemberClaim where MemberId=@memberId", new { memberId = memberId }))
-           {
-               claims.AddClaim(new Claim(c.ClaimType, c.ClaimValue));
-           }
+            using (var connection = DbConnectionFactory.GetOpenConnection())
+            {
+                foreach (var c in connection.Query("Select * from MemberClaim where MemberId=@memberId", new { memberId = memberId }))
+                {
+                    claims.AddClaim(new Claim(c.ClaimType, c.ClaimValue));
+                }
+            }
 
            return claims;
         }
@@ -47,23 +43,33 @@ namespace AspNet.Identity.Dapper
         /// <returns></returns>
         public void Delete(int memberId)
         {
-            db.Connection.Execute(@"Delete from MemberClaim where UserId = @memberId", new { memberId = memberId });
+            using (var connection = DbConnectionFactory.GetOpenConnection())
+            {
+                connection.Execute(@"Delete from MemberClaim where UserId = @memberId", new { memberId = memberId });
+            }                
         }
 
         /// <summary>
         /// Inserts a new claim in UserClaims table
         /// </summary>
-        /// <param name="MemberClaim">User's claim to be added</param>
+        /// <param name="claim">User's claim to be added</param>
         /// <param name="userId">User's id</param>
         /// <returns></returns>
-        public void Insert(Claim MemberClaim, int memberId)
+        public void Insert(Claim claim, int memberId)
         {
-            db.Connection.Execute(@"Insert into MemberClaim (ClaimValue, ClaimType, MemberId) 
-                values (@value, @type, @userId)", 
-                    new { 
-                        value=MemberClaim.Value,
-                        type=MemberClaim.Type,userId=memberId
-                        });
+            using (var connection = DbConnectionFactory.GetOpenConnection())
+            {
+                connection.Execute(@"
+                    Insert into MemberClaim (ClaimValue, ClaimType, MemberId) 
+                    values (@value, @type, @userId)",
+                    new
+                    {
+                        value = claim.Value,
+                        type = claim.Type,
+                        userId = memberId
+                    }
+                );
+            }
         }
 
         /// <summary>
@@ -74,13 +80,18 @@ namespace AspNet.Identity.Dapper
         /// <returns></returns>
         public void Delete(IdentityMember member, Claim claim)
         {
-            db.Connection.Execute(@"Delete from MemberClaim 
-            where UserId = @memberId and @ClaimValue = @value and ClaimType = @type",
-                new { 
-                    memberId = member.Id,
-                    ClaimValue=claim.Value,
-                    type=claim.Type 
-                });
+            using (var connection = DbConnectionFactory.GetOpenConnection())
+            {
+                connection.Execute(@"
+                    Delete from MemberClaim where UserId = @memberId and @ClaimValue = @value and ClaimType = @type",
+                    new
+                    {
+                        memberId = member.Id,
+                        ClaimValue = claim.Value,
+                        type = claim.Type
+                    }
+                );
+            }
         }
     }
 }

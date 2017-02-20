@@ -1,7 +1,6 @@
-﻿using Dapper;
-using System;
+﻿using AspNet.Identity.Dapper.Connection.Interfaces;
+using Dapper;
 using System.Collections.Generic;
-using System.Data;
 using System.Linq;
 
 namespace AspNet.Identity.Dapper
@@ -12,15 +11,11 @@ namespace AspNet.Identity.Dapper
     public class UserTable<TUser>
         where TUser : IdentityMember
     {
-        private DbManager db;
+        private IDbConnectionFactory DbConnectionFactory { get; }
 
-        /// <summary>
-        /// Constructor that takes a DbManager instance 
-        /// </summary>
-        /// <param name="database"></param>
-        public UserTable(DbManager database)
+        public UserTable(IDbConnectionFactory dbConnectionFactory)
         {
-            db = database;
+            DbConnectionFactory = dbConnectionFactory;
         }
 
         /// <summary>
@@ -30,7 +25,10 @@ namespace AspNet.Identity.Dapper
         /// <returns></returns>
         public string GetUserName(int memberId)
         {
-            return db.Connection.ExecuteScalar<string>("Select Name from Member where Id=@MemberId", new { MemberId = memberId });
+            using (var connection = DbConnectionFactory.GetOpenConnection())
+            {
+                return connection.ExecuteScalar<string>("Select Name from Member where Id=@MemberId", new { MemberId = memberId });
+            }
         }
 
         /// <summary>
@@ -40,7 +38,10 @@ namespace AspNet.Identity.Dapper
         /// <returns></returns>
         public int GetmemberId(string userName)
         {
-            return db.Connection.ExecuteScalar<int>("Select Id from Member where UserName=@UserName", new { UserName=userName });
+            using (var connection = DbConnectionFactory.GetOpenConnection())
+            {
+                return connection.ExecuteScalar<int>("Select Id from Member where UserName=@UserName", new { UserName = userName });
+            }
         }
 
         /// <summary>
@@ -50,8 +51,11 @@ namespace AspNet.Identity.Dapper
         /// <returns></returns>
         public TUser GetUserById(int memberId)
         {
-            return db.Connection.Query<TUser>("Select * from Member where Id=@MemberId", new { MemberId = memberId })
+            using (var connection = DbConnectionFactory.GetOpenConnection())
+            {
+                return connection.Query<TUser>("Select * from Member where Id=@MemberId", new { MemberId = memberId })
                 .FirstOrDefault();
+            }
         }
 
         /// <summary>
@@ -61,8 +65,11 @@ namespace AspNet.Identity.Dapper
         /// <returns></returns>
         public List<TUser> GetUserByName(string userName)
         {
-            return db.Connection.Query<TUser>("Select * from Member where UserName=@UserName", new { UserName=userName })
+            using (var connection = DbConnectionFactory.GetOpenConnection())
+            {
+                return connection.Query<TUser>("Select * from Member where UserName=@UserName", new { UserName = userName })
                 .ToList();
+            }
         }
 
         public List<TUser> GetUserByEmail(string email)
@@ -77,7 +84,10 @@ namespace AspNet.Identity.Dapper
         /// <returns></returns>
         public string GetPasswordHash(int memberId)
         {
-            return db.Connection.ExecuteScalar<string>("Select PasswordHash from Member where Id = @MemberId", new { MemberId =memberId});
+            using (var connection = DbConnectionFactory.GetOpenConnection())
+            {
+                return connection.ExecuteScalar<string>("Select PasswordHash from Member where Id = @MemberId", new { MemberId = memberId });
+            }
         }
 
         /// <summary>
@@ -88,13 +98,16 @@ namespace AspNet.Identity.Dapper
         /// <returns></returns>
         public void SetPasswordHash(int memberId, string passwordHash)
         {
-            db.Connection.Execute(@"
+            using (var connection = DbConnectionFactory.GetOpenConnection())
+            {
+                connection.Execute(@"
                     UPDATE
                         Member
                     SET
                         PasswordHash = @pwdHash
                     WHERE
                         Id = @Id", new { pwdHash = passwordHash, Id = memberId });
+            }
         }
 
         /// <summary>
@@ -104,7 +117,10 @@ namespace AspNet.Identity.Dapper
         /// <returns></returns>
         public string GetSecurityStamp(int memberId)
         {
-            return db.Connection.ExecuteScalar<string>("Select SecurityStamp from Member where Id = @MemberId", new {MemberId=memberId });
+            using (var connection = DbConnectionFactory.GetOpenConnection())
+            {
+                return connection.ExecuteScalar<string>("Select SecurityStamp from Member where Id = @MemberId", new { MemberId = memberId });
+            }
         }
 
         /// <summary>
@@ -114,25 +130,29 @@ namespace AspNet.Identity.Dapper
         /// <returns></returns>
         public void Insert(TUser member)
         {
-           var id = db.Connection.ExecuteScalar<int>(@"Insert into Member
+            using (var connection = DbConnectionFactory.GetOpenConnection())
+            {
+                var id = connection.ExecuteScalar<int>(@"Insert into Member
                                     (UserName,  PasswordHash, SecurityStamp,Email,EmailConfirmed,PhoneNumber,PhoneNumberConfirmed, AccessFailedCount,LockoutEnabled,LockoutEndDateUtc,TwoFactorEnabled)
                             values  (@name, @pwdHash, @SecStamp,@email,@emailconfirmed,@phonenumber,@phonenumberconfirmed,@accesscount,@lockoutenabled,@lockoutenddate,@twofactorenabled)
                             SELECT Cast(SCOPE_IDENTITY() as int)",
-                             new {  
-                                    name=member.UserName,
-                                    pwdHash=member.PasswordHash,
-                                    SecStamp=member.SecurityStamp,
-                                    email=member.Email,
-                                    emailconfirmed=member.EmailConfirmed,
-                                    phonenumber=member.PhoneNumber,
-                                    phonenumberconfirmed=member.PhoneNumberConfirmed,
-                                    accesscount=member.AccessFailedCount,
-                                    lockoutenabled=member.LockoutEnabled,
-                                    lockoutenddate=member.LockoutEndDateUtc,
-                                    twofactorenabled=member.TwoFactorEnabled
+                             new
+                             {
+                                 name = member.UserName,
+                                 pwdHash = member.PasswordHash,
+                                 SecStamp = member.SecurityStamp,
+                                 email = member.Email,
+                                 emailconfirmed = member.EmailConfirmed,
+                                 phonenumber = member.PhoneNumber,
+                                 phonenumberconfirmed = member.PhoneNumberConfirmed,
+                                 accesscount = member.AccessFailedCount,
+                                 lockoutenabled = member.LockoutEnabled,
+                                 lockoutenddate = member.LockoutEndDateUtc,
+                                 twofactorenabled = member.TwoFactorEnabled
                              });
-            // we need to set the id to the returned identity generated from the db
-            member.Id = id;
+                // we need to set the id to the returned identity generated from the db
+                member.Id = id;
+            }
         }
 
         /// <summary>
@@ -142,7 +162,10 @@ namespace AspNet.Identity.Dapper
         /// <returns></returns>
         private void Delete(int memberId)
         {
-            db.Connection.Execute(@"Delete from Member where Id = @MemberId", new { MemberId = memberId });
+            using (var connection = DbConnectionFactory.GetOpenConnection())
+            {
+                connection.Execute(@"Delete from Member where Id = @MemberId", new { MemberId = memberId });
+            }
         }
 
         /// <summary>
@@ -162,28 +185,30 @@ namespace AspNet.Identity.Dapper
         /// <returns></returns>
         public void Update(TUser member)
         {
-            db.Connection
-              .Execute(@"
-                            Update AspNetUsers set UserName = @userName, PasswordHash = @pswHash, SecurityStamp = @secStamp, 
-                Email=@email, EmailConfirmed=@emailconfirmed, PhoneNumber=@phonenumber, PhoneNumberConfirmed=@phonenumberconfirmed,
-                AccessFailedCount=@accesscount, LockoutEnabled=@lockoutenabled, LockoutEndDateUtc=@lockoutenddate, TwoFactorEnabled=@twofactorenabled  
-                WHERE Id = @memberId",
-                new
-                {
-                    userName= member.UserName,
-                    pswHash= member.PasswordHash,
-                    secStamp= member.SecurityStamp,
-                    memberId= member.Id,
-                    email= member.Email,
-                    emailconfirmed= member.EmailConfirmed,
-                    phonenumber= member.PhoneNumber,
-                    phonenumberconfirmed= member.PhoneNumberConfirmed,
-                    accesscount= member.AccessFailedCount,
-                    lockoutenabled= member.LockoutEnabled,
-                    lockoutenddate= member.LockoutEndDateUtc,
-                    twofactorenabled= member.TwoFactorEnabled
-                }            
-           );
+            using (var connection = DbConnectionFactory.GetOpenConnection())
+            {
+                connection.Execute(@"
+                    Update AspNetUsers set UserName = @userName, PasswordHash = @pswHash, SecurityStamp = @secStamp, 
+                    Email=@email, EmailConfirmed=@emailconfirmed, PhoneNumber=@phonenumber, PhoneNumberConfirmed=@phonenumberconfirmed,
+                    AccessFailedCount=@accesscount, LockoutEnabled=@lockoutenabled, LockoutEndDateUtc=@lockoutenddate, TwoFactorEnabled=@twofactorenabled  
+                    WHERE Id = @memberId",
+                    new
+                    {
+                        userName = member.UserName,
+                        pswHash = member.PasswordHash,
+                        secStamp = member.SecurityStamp,
+                        memberId = member.Id,
+                        email = member.Email,
+                        emailconfirmed = member.EmailConfirmed,
+                        phonenumber = member.PhoneNumber,
+                        phonenumberconfirmed = member.PhoneNumberConfirmed,
+                        accesscount = member.AccessFailedCount,
+                        lockoutenabled = member.LockoutEnabled,
+                        lockoutenddate = member.LockoutEndDateUtc,
+                        twofactorenabled = member.TwoFactorEnabled
+                    }
+                );
+            }
         }
     }
 }

@@ -1,14 +1,8 @@
-﻿using ConsumerApp.Database.Connections.Interfaces;
-using System;
-using System.Collections.Generic;
-using System.Configuration;
-using System.Data.Common;
+﻿using AspNet.Identity.Dapper.Connection.Interfaces;
 using System.Data.SqlClient;
-using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 
-namespace ConsumerApp.Database.Connections
+namespace AspNet.Identity.Dapper.Connection
 {
     public class SqlConnectionFactory : IDbConnectionFactory
     {
@@ -17,6 +11,15 @@ namespace ConsumerApp.Database.Connections
         public SqlConnectionFactory(string connectionString)
         {
             ConnectionString = connectionString;
+        }
+
+        public SqlConnection GetOpenConnection()
+        {
+            var connection = new SqlConnection(ConnectionString);
+
+            connection.Open();
+
+            return connection;
         }
 
         public async Task<SqlConnection> GetOpenConnectionAsync()

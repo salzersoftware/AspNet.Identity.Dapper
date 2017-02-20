@@ -1,15 +1,12 @@
-﻿using Microsoft.AspNet.Identity;
+﻿using AspNet.Identity.Dapper.Connection.Interfaces;
+using Microsoft.AspNet.Identity;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;
-using Dapper;
-using System.Data;
-using System.Data.SqlClient;
-using System.Configuration;
 
-namespace AspNet.Identity.Dapper
+namespace AspNet.Identity.Dapper.Store
 {
     /// <summary>
     /// Class that implements the key ASP.NET Identity user store iterfaces
@@ -27,43 +24,27 @@ namespace AspNet.Identity.Dapper
         IUserStore<TUser,int>
         where TUser : IdentityMember
     {
-        private UserTable<TUser> userTable;
-        private RoleTable roleTable;
-        private UserRolesTable userRolesTable;
-        private UserClaimsTable userClaimsTable;
-        private UserLoginsTable userLoginsTable;
-        public DbManager Database { get; private set; }
+        private UserTable<TUser> UserTable { get; }
+        private RoleTable RoleTable { get; }
+        private UserRolesTable UserRolesTable { get; }
+        private UserClaimsTable UserClaimsTable { get; }
+        private UserLoginsTable UserLoginsTable { get; }
 
-        public IQueryable<TUser> Users
-        {
-            get
-            {
-                throw new NotImplementedException();
-            }
-        }
-
-
-        /// <summary>
-        /// Default constructor that initializes a new database
-        /// instance using the Default Connection string
-        /// </summary>
-        public UserStore()
-        {
-            new UserStore<TUser>(new DbManager(ConfigurationManager.ConnectionStrings["DefaultConnection"].ConnectionString));   
-        }
+        private IDbConnectionFactory DbConnectionFactory { get; }
+        public IQueryable<TUser> Users { get { throw new NotImplementedException(); } }
 
         /// <summary>
         /// Constructor that takes a dbmanager as argument 
         /// </summary>
         /// <param name="database"></param>
-        public UserStore(DbManager database)
+        public UserStore(IDbConnectionFactory dbConnectionFactory)
         {
-            Database = database;
-            userTable = new UserTable<TUser>(database);
-            roleTable = new RoleTable(database);
-            userRolesTable = new UserRolesTable(database);
-            userClaimsTable = new UserClaimsTable(database);
-            userLoginsTable = new UserLoginsTable(database);
+            DbConnectionFactory = dbConnectionFactory;
+            UserTable = new UserTable<TUser>(dbConnectionFactory);
+            RoleTable = new RoleTable(dbConnectionFactory);
+            UserRolesTable = new UserRolesTable(dbConnectionFactory);
+            UserClaimsTable = new UserClaimsTable(dbConnectionFactory);
+            UserLoginsTable = new UserLoginsTable(dbConnectionFactory);
         }
 
         /// <summary>
@@ -78,7 +59,7 @@ namespace AspNet.Identity.Dapper
                 throw new ArgumentNullException("user");
             }
 
-            userTable.Insert(user);
+            UserTable.Insert(user);
 
             return Task.FromResult<object>(null);
         }
@@ -95,7 +76,7 @@ namespace AspNet.Identity.Dapper
             //    throw new ArgumentException("Null or empty argument: userId");
             //}
 
-            TUser result = userTable.GetUserById(userId) as TUser;
+            TUser result = UserTable.GetUserById(userId) as TUser;
             if (result != null)
             {
                 return Task.FromResult<TUser>(result);
@@ -116,7 +97,7 @@ namespace AspNet.Identity.Dapper
                 throw new ArgumentException("Null or empty argument: userName");
             }
 
-            List<TUser> result = userTable.GetUserByName(userName) as List<TUser>;
+            List<TUser> result = UserTable.GetUserByName(userName) as List<TUser>;
 
             // Should I throw if > 1 user?
             if (result != null && result.Count == 1)
@@ -139,18 +120,14 @@ namespace AspNet.Identity.Dapper
                 throw new ArgumentNullException("user");
             }
 
-            userTable.Update(user);
+            UserTable.Update(user);
 
             return Task.FromResult<object>(null);
         }
 
         public void Dispose()
         {
-            if (Database != null)
-            {
-                Database.Dispose();
-                Database = null;
-            }
+            // Nothing to dispose.
         }
 
         /// <summary>
@@ -171,7 +148,7 @@ namespace AspNet.Identity.Dapper
                 throw new ArgumentNullException("user");
             }
 
-            userClaimsTable.Insert(claim, user.Id);
+            UserClaimsTable.Insert(claim, user.Id);
 
             return Task.FromResult<object>(null);
         }
@@ -183,7 +160,7 @@ namespace AspNet.Identity.Dapper
         /// <returns></returns>
         public Task<IList<Claim>> GetClaimsAsync(TUser user)
         {
-            ClaimsIdentity identity = userClaimsTable.FindByUserId(user.Id);
+            ClaimsIdentity identity = UserClaimsTable.FindByUserId(user.Id);
 
             return Task.FromResult<IList<Claim>>(identity.Claims.ToList());
         }
@@ -206,7 +183,7 @@ namespace AspNet.Identity.Dapper
                 throw new ArgumentNullException("claim");
             }
 
-            userClaimsTable.Delete(user, claim);
+            UserClaimsTable.Delete(user, claim);
 
             return Task.FromResult<object>(null);
         }
@@ -229,7 +206,7 @@ namespace AspNet.Identity.Dapper
                 throw new ArgumentNullException("login");
             }
 
-            userLoginsTable.Insert(user, login);
+            UserLoginsTable.Insert(user, login);
 
             return Task.FromResult<object>(null);
         }
@@ -246,10 +223,10 @@ namespace AspNet.Identity.Dapper
                 throw new ArgumentNullException("login");
             }
 
-            var userId = userLoginsTable.FindUserIdByLogin(login);
+            var userId = UserLoginsTable.FindUserIdByLogin(login);
             if (userId > 0)
             {
-                TUser user = userTable.GetUserById(userId) as TUser;
+                TUser user = UserTable.GetUserById(userId) as TUser;
                 if (user != null)
                 {
                     return Task.FromResult<TUser>(user);
@@ -272,7 +249,7 @@ namespace AspNet.Identity.Dapper
                 throw new ArgumentNullException("user");
             }
 
-            List<UserLoginInfo> logins = userLoginsTable.FindByUserId(user.Id);
+            List<UserLoginInfo> logins = UserLoginsTable.FindByUserId(user.Id);
             if (logins != null)
             {
                 return Task.FromResult<IList<UserLoginInfo>>(logins);
@@ -299,7 +276,7 @@ namespace AspNet.Identity.Dapper
                 throw new ArgumentNullException("login");
             }
 
-            userLoginsTable.Delete(user, login);
+            UserLoginsTable.Delete(user, login);
 
             return Task.FromResult<Object>(null);
         }
@@ -322,10 +299,10 @@ namespace AspNet.Identity.Dapper
                 throw new ArgumentException("Argument cannot be null or empty: roleName.");
             }
 
-            int roleId = roleTable.GetRoleId(roleName);
+            int roleId = RoleTable.GetRoleId(roleName);
             if(roleId>0)
             {
-                userRolesTable.Insert(user, roleId);
+                UserRolesTable.Insert(user, roleId);
             }
             //if (!string.IsNullOrEmpty(roleId))
             //{
@@ -347,7 +324,7 @@ namespace AspNet.Identity.Dapper
                 throw new ArgumentNullException("user");
             }
 
-            List<string> roles = userRolesTable.FindByUserId(user.Id);
+            List<string> roles = UserRolesTable.FindByUserId(user.Id);
             {
                 if (roles != null)
                 {
@@ -376,7 +353,7 @@ namespace AspNet.Identity.Dapper
                 throw new ArgumentNullException("role");
             }
 
-            List<string> roles = userRolesTable.FindByUserId(user.Id);
+            List<string> roles = UserRolesTable.FindByUserId(user.Id);
             {
                 if (roles != null && roles.Contains(role))
                 {
@@ -407,7 +384,7 @@ namespace AspNet.Identity.Dapper
         {
             if (user != null)
             {
-                userTable.Delete(user);
+                UserTable.Delete(user);
             }
 
             return Task.FromResult<Object>(null);
@@ -420,7 +397,7 @@ namespace AspNet.Identity.Dapper
         /// <returns></returns>
         public Task<string> GetPasswordHashAsync(TUser user)
         {
-            string passwordHash = userTable.GetPasswordHash(user.Id);
+            string passwordHash = UserTable.GetPasswordHash(user.Id);
 
             return Task.FromResult<string>(passwordHash);
         }
@@ -432,7 +409,7 @@ namespace AspNet.Identity.Dapper
         /// <returns></returns>
         public Task<bool> HasPasswordAsync(TUser user)
         {
-            var hasPassword = !string.IsNullOrEmpty(userTable.GetPasswordHash(user.Id));
+            var hasPassword = !string.IsNullOrEmpty(UserTable.GetPasswordHash(user.Id));
 
             return Task.FromResult<bool>(Boolean.Parse(hasPassword.ToString()));
         }
@@ -483,7 +460,7 @@ namespace AspNet.Identity.Dapper
         public Task SetEmailAsync(TUser user, string email)
         {
             user.Email = email;
-            userTable.Update(user);
+            UserTable.Update(user);
 
             return Task.FromResult(0);
 
@@ -518,7 +495,7 @@ namespace AspNet.Identity.Dapper
         public Task SetEmailConfirmedAsync(TUser user, bool confirmed)
         {
             user.EmailConfirmed = confirmed;
-            userTable.Update(user);
+            UserTable.Update(user);
 
             return Task.FromResult(0);
         }
@@ -535,7 +512,7 @@ namespace AspNet.Identity.Dapper
                 throw new ArgumentNullException("email");
             }
 
-            TUser result = userTable.GetUserByEmail(email) as TUser;
+            TUser result = UserTable.GetUserByEmail(email) as TUser;
             if (result != null)
             {
                 return Task.FromResult<TUser>(result);
@@ -553,7 +530,7 @@ namespace AspNet.Identity.Dapper
         public Task SetPhoneNumberAsync(TUser user, string phoneNumber)
         {
             user.PhoneNumber = phoneNumber;
-            userTable.Update(user);
+            UserTable.Update(user);
 
             return Task.FromResult(0);
         }
@@ -587,7 +564,7 @@ namespace AspNet.Identity.Dapper
         public Task SetPhoneNumberConfirmedAsync(TUser user, bool confirmed)
         {
             user.PhoneNumberConfirmed = confirmed;
-            userTable.Update(user);
+            UserTable.Update(user);
 
             return Task.FromResult(0);
         }
@@ -601,7 +578,7 @@ namespace AspNet.Identity.Dapper
         public Task SetTwoFactorEnabledAsync(TUser user, bool enabled)
         {
             user.TwoFactorEnabled = enabled;
-            userTable.Update(user);
+            UserTable.Update(user);
 
             return Task.FromResult(0);
         }
@@ -639,7 +616,7 @@ namespace AspNet.Identity.Dapper
         public Task SetLockoutEndDateAsync(TUser user, DateTimeOffset lockoutEnd)
         {
             user.LockoutEndDateUtc = lockoutEnd.UtcDateTime;
-            userTable.Update(user);
+            UserTable.Update(user);
 
             return Task.FromResult(0);
         }
@@ -652,7 +629,7 @@ namespace AspNet.Identity.Dapper
         public Task<int> IncrementAccessFailedCountAsync(TUser user)
         {
             user.AccessFailedCount++;
-            userTable.Update(user);
+            UserTable.Update(user);
 
             return Task.FromResult(user.AccessFailedCount);
         }
@@ -665,7 +642,7 @@ namespace AspNet.Identity.Dapper
         public Task ResetAccessFailedCountAsync(TUser user)
         {
             user.AccessFailedCount = 0;
-            userTable.Update(user);
+            UserTable.Update(user);
 
             return Task.FromResult(0);
         }
@@ -699,7 +676,7 @@ namespace AspNet.Identity.Dapper
         public Task SetLockoutEnabledAsync(TUser user, bool enabled)
         {
             user.LockoutEnabled = enabled;
-            userTable.Update(user);
+            UserTable.Update(user);
 
             return Task.FromResult(0);
         }
