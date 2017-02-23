@@ -33,10 +33,6 @@ namespace AspNet.Identity.Dapper.Store
         private IDbConnectionFactory DbConnectionFactory { get; }
         public IQueryable<TUser> Users { get { throw new NotImplementedException(); } }
 
-        /// <summary>
-        /// Constructor that takes a dbmanager as argument 
-        /// </summary>
-        /// <param name="database"></param>
         public UserStore(IDbConnectionFactory dbConnectionFactory)
         {
             DbConnectionFactory = dbConnectionFactory;
@@ -47,82 +43,37 @@ namespace AspNet.Identity.Dapper.Store
             UserLoginsTable = new UserLoginsTable(dbConnectionFactory);
         }
 
-        /// <summary>
-        /// Insert a new TUser in the UserTable
-        /// </summary>
-        /// <param name="user"></param>
-        /// <returns></returns>
-        public Task CreateAsync(TUser user)
+        public async Task CreateAsync(TUser user)
         {
             if (user == null)
             {
-                throw new ArgumentNullException("user");
+                throw new ArgumentNullException(nameof(user));
             }
 
-            UserTable.Insert(user);
+            int id = await UserTable.Insert(user);
 
-            return Task.FromResult<object>(null);
+            // Assign the auto-generated ID to the user.
+            user.Id = id;
         }
 
-        /// <summary>
-        /// Returns an TUser instance based on a userId query 
-        /// </summary>
-        /// <param name="userId">The user's Id</param>
-        /// <returns></returns>
         public Task<TUser> FindByIdAsync(int userId)
         {
-            //if (string.IsNullOrEmpty(userId))
-            //{
-            //    throw new ArgumentException("Null or empty argument: userId");
-            //}
-
-            TUser result = UserTable.GetUserById(userId) as TUser;
-            if (result != null)
-            {
-                return Task.FromResult<TUser>(result);
-            }
-
-            return Task.FromResult<TUser>(null);
+            return UserTable.GetUserById(userId);
         }
 
-        /// <summary>
-        /// Returns an TUser instance based on a userName query 
-        /// </summary>
-        /// <param name="userName">The user's name</param>
-        /// <returns></returns>
         public Task<TUser> FindByNameAsync(string userName)
         {
-            if (string.IsNullOrEmpty(userName))
-            {
-                throw new ArgumentException("Null or empty argument: userName");
-            }
-
-            List<TUser> result = UserTable.GetUserByName(userName) as List<TUser>;
-
-            // Should I throw if > 1 user?
-            if (result != null && result.Count == 1)
-            {
-                return Task.FromResult<TUser>(result[0]);
-            }
-
-            return Task.FromResult<TUser>(null);
+            return UserTable.GetUserByName(userName);
         }
 
-        /// <summary>
-        /// Updates the UsersTable with the TUser instance values
-        /// </summary>
-        /// <param name="user">TUser to be updated</param>
-        /// <returns></returns>
         public Task UpdateAsync(TUser user)
         {
             if (user == null)
             {
-                throw new ArgumentNullException("user");
+                throw new ArgumentNullException(nameof(user));
             }
 
-            UserTable.Update(user);
-
-            return Task.FromResult<object>(null);
+            return UserTable.Update(user);
         }
 
         public void Dispose()
@@ -140,17 +91,17 @@ namespace AspNet.Identity.Dapper.Store
         {
             if (user == null)
             {
-                throw new ArgumentNullException("user");
+                throw new ArgumentNullException(nameof(user));
             }
 
             if (claim == null)
             {
-                throw new ArgumentNullException("user");
+                throw new ArgumentNullException(nameof(claim));
             }
 
             UserClaimsTable.Insert(claim, user.Id);
 
-            return Task.FromResult<object>(null);
+            return Task.FromResult(0);
         }
 
         /// <summary>
@@ -287,11 +238,11 @@ namespace AspNet.Identity.Dapper.Store
         /// <param name="user">User to have role added</param>
         /// <param name="roleName">Name of the role to be added to user</param>
         /// <returns></returns>
-        public Task AddToRoleAsync(TUser user, string roleName)
+        public async Task AddToRoleAsync(TUser user, string roleName)
         {
             if (user == null)
             {
-                throw new ArgumentNullException("user");
+                throw new ArgumentNullException(nameof(user));
             }
 
             if (string.IsNullOrEmpty(roleName))
@@ -299,17 +250,12 @@ namespace AspNet.Identity.Dapper.Store
                 throw new ArgumentException("Argument cannot be null or empty: roleName.");
             }
 
-            int roleId = RoleTable.GetRoleId(roleName);
-            if(roleId>0)
-            {
-                UserRolesTable.Insert(user, roleId);
-            }
-            //if (!string.IsNullOrEmpty(roleId))
-            //{
-            //    userRolesTable.Insert(user, roleId);
-            //}
+            IRole<int> role = await RoleTable.GetRoleByName(roleName);
 
-            return Task.FromResult<object>(null);
+            if(role != null)
+            {
+                UserRolesTable.Insert(user, role.Id);
+            }
         }
 
         /// <summary>
@@ -317,35 +263,23 @@ namespace AspNet.Identity.Dapper.Store
         /// </summary>
         /// <param name="user"></param>
         /// <returns></returns>
-        public Task<IList<string>> GetRolesAsync(TUser user)
+        public async Task<IList<string>> GetRolesAsync(TUser user)
         {
             if (user == null)
             {
-                throw new ArgumentNullException("user");
+                throw new ArgumentNullException(nameof(user));
             }
 
-            List<string> roles = UserRolesTable.FindByUserId(user.Id);
-            {
-                if (roles != null)
-                {
-                    return Task.FromResult<IList<string>>(roles);
-                }
-            }
+            var roleNames = await UserRolesTable.FindByUserId(user.Id);
 
-            return Task.FromResult<IList<string>>(null);
+            return roleNames.ToList();
         }
 
-        /// <summary>
-        /// Verifies if a user is in a role
-        /// </summary>
-        /// <param name="user"></param>
-        /// <param name="role"></param>
-        /// <returns></returns>
-        public Task<bool> IsInRoleAsync(TUser user, string role)
+        public async Task<bool> IsInRoleAsync(TUser user, string role)
         {
             if (user == null)
             {
-                throw new ArgumentNullException("user");
+                throw new ArgumentNullException(nameof(user));
             }
 
             if (string.IsNullOrEmpty(role))
@@ -353,332 +287,182 @@ namespace AspNet.Identity.Dapper.Store
                 throw new ArgumentNullException("role");
             }
 
-            List<string> roles = UserRolesTable.FindByUserId(user.Id);
-            {
-                if (roles != null && roles.Contains(role))
-                {
-                    return Task.FromResult<bool>(true);
-                }
-            }
+            var roleNames = await UserRolesTable.FindByUserId(user.Id);
 
-            return Task.FromResult<bool>(false);
+            return roleNames.Contains(role);
         }
 
-        /// <summary>
-        /// Removes a user from a role
-        /// </summary>
-        /// <param name="user"></param>
-        /// <param name="role"></param>
-        /// <returns></returns>
         public Task RemoveFromRoleAsync(TUser user, string role)
         {
             throw new NotImplementedException();
         }
 
-        /// <summary>
-        /// Deletes a user
-        /// </summary>
-        /// <param name="user"></param>
-        /// <returns></returns>
         public Task DeleteAsync(TUser user)
         {
             if (user != null)
             {
-                UserTable.Delete(user);
+                return UserTable.Delete(user);
             }
 
-            return Task.FromResult<Object>(null);
+            return Task.FromResult(0);
         }
 
-        /// <summary>
-        /// Returns the PasswordHash for a given TUser
-        /// </summary>
-        /// <param name="user"></param>
-        /// <returns></returns>
         public Task<string> GetPasswordHashAsync(TUser user)
         {
-            string passwordHash = UserTable.GetPasswordHash(user.Id);
-
-            return Task.FromResult<string>(passwordHash);
+            return UserTable.GetPasswordHash(user.Id);
         }
 
-        /// <summary>
-        /// Verifies if user has password
-        /// </summary>
-        /// <param name="user"></param>
-        /// <returns></returns>
-        public Task<bool> HasPasswordAsync(TUser user)
+        public async Task<bool> HasPasswordAsync(TUser user)
         {
-            var hasPassword = !string.IsNullOrEmpty(UserTable.GetPasswordHash(user.Id));
+            string passwordHash = await UserTable.GetPasswordHash(user.Id);
 
-            return Task.FromResult<bool>(Boolean.Parse(hasPassword.ToString()));
+            return !String.IsNullOrEmpty(passwordHash);
         }
 
-        /// <summary>
-        /// Sets the password hash for a given TUser
-        /// </summary>
-        /// <param name="user"></param>
-        /// <param name="passwordHash"></param>
-        /// <returns></returns>
         public Task SetPasswordHashAsync(TUser user, string passwordHash)
         {
             user.PasswordHash = passwordHash;
 
-            return Task.FromResult<Object>(null);
+            // TODO: Do we need to update the database?
+
+            return Task.FromResult(0);
         }
 
-        /// <summary>
-        ///  Set security stamp
-        /// </summary>
-        /// <param name="user"></param>
-        /// <param name="stamp"></param>
-        /// <returns></returns>
         public Task SetSecurityStampAsync(TUser user, string stamp)
         {
             user.SecurityStamp = stamp;
 
-            return Task.FromResult(0);
+            // TODO: Do we need to update the database?
 
+            return Task.FromResult(0);
         }
 
-        /// <summary>
-        /// Get security stamp
-        /// </summary>
-        /// <param name="user"></param>
-        /// <returns></returns>
         public Task<string> GetSecurityStampAsync(TUser user)
         {
+            // TODO: Do we need to query the database?
             return Task.FromResult(user.SecurityStamp);
         }
 
-        /// <summary>
-        /// Set email on user
-        /// </summary>
-        /// <param name="user"></param>
-        /// <param name="email"></param>
-        /// <returns></returns>
         public Task SetEmailAsync(TUser user, string email)
         {
             user.Email = email;
-            UserTable.Update(user);
 
-            return Task.FromResult(0);
-
+            return UserTable.Update(user);
         }
 
-        /// <summary>
-        /// Get email from user
-        /// </summary>
-        /// <param name="user"></param>
-        /// <returns></returns>
         public Task<string> GetEmailAsync(TUser user)
         {
+            // TODO: Do we need to query the database?
             return Task.FromResult(user.Email);
         }
 
-        /// <summary>
-        /// Get if user email is confirmed
-        /// </summary>
-        /// <param name="user"></param>
-        /// <returns></returns>
         public Task<bool> GetEmailConfirmedAsync(TUser user)
         {
+            // TODO: Do we need to query the database?
             return Task.FromResult(user.EmailConfirmed);
         }
 
-        /// <summary>
-        /// Set when user email is confirmed
-        /// </summary>
-        /// <param name="user"></param>
-        /// <param name="confirmed"></param>
-        /// <returns></returns>
         public Task SetEmailConfirmedAsync(TUser user, bool confirmed)
         {
             user.EmailConfirmed = confirmed;
-            UserTable.Update(user);
 
-            return Task.FromResult(0);
+            return UserTable.Update(user);
         }
 
-        /// <summary>
-        /// Get user by email
-        /// </summary>
-        /// <param name="email"></param>
-        /// <returns></returns>
+
         public Task<TUser> FindByEmailAsync(string email)
         {
-            if (String.IsNullOrEmpty(email))
-            {
-                throw new ArgumentNullException("email");
-            }
-
-            TUser result = UserTable.GetUserByEmail(email) as TUser;
-            if (result != null)
-            {
-                return Task.FromResult<TUser>(result);
-            }
-
-            return Task.FromResult<TUser>(null);
+            return UserTable.GetUserByEmail(email);
         }
 
-        /// <summary>
-        /// Set user phone number
-        /// </summary>
-        /// <param name="user"></param>
-        /// <param name="phoneNumber"></param>
-        /// <returns></returns>
         public Task SetPhoneNumberAsync(TUser user, string phoneNumber)
         {
             user.PhoneNumber = phoneNumber;
-            UserTable.Update(user);
 
-            return Task.FromResult(0);
+            return UserTable.Update(user);
         }
 
-        /// <summary>
-        /// Get user phone number
-        /// </summary>
-        /// <param name="user"></param>
-        /// <returns></returns>
         public Task<string> GetPhoneNumberAsync(TUser user)
         {
+            // TODO: Do we need to query the database?
             return Task.FromResult(user.PhoneNumber);
         }
 
-        /// <summary>
-        /// Get if user phone number is confirmed
-        /// </summary>
-        /// <param name="user"></param>
-        /// <returns></returns>
         public Task<bool> GetPhoneNumberConfirmedAsync(TUser user)
         {
+            // TODO: Do we need to query the database?
             return Task.FromResult(user.PhoneNumberConfirmed);
         }
 
-        /// <summary>
-        /// Set phone number if confirmed
-        /// </summary>
-        /// <param name="user"></param>
-        /// <param name="confirmed"></param>
-        /// <returns></returns>
         public Task SetPhoneNumberConfirmedAsync(TUser user, bool confirmed)
         {
             user.PhoneNumberConfirmed = confirmed;
-            UserTable.Update(user);
 
-            return Task.FromResult(0);
+            return UserTable.Update(user);
         }
 
-        /// <summary>
-        /// Set two factor authentication is enabled on the user
-        /// </summary>
-        /// <param name="user"></param>
-        /// <param name="enabled"></param>
-        /// <returns></returns>
         public Task SetTwoFactorEnabledAsync(TUser user, bool enabled)
         {
             user.TwoFactorEnabled = enabled;
-            UserTable.Update(user);
 
-            return Task.FromResult(0);
+            return UserTable.Update(user);
         }
 
-        /// <summary>
-        /// Get if two factor authentication is enabled on the user
-        /// </summary>
-        /// <param name="user"></param>
-        /// <returns></returns>
         public Task<bool> GetTwoFactorEnabledAsync(TUser user)
         {
+            // TODO: Do we need to query the database?
             return Task.FromResult(user.TwoFactorEnabled);
         }
 
-        /// <summary>
-        /// Get user lock out end date
-        /// </summary>
-        /// <param name="user"></param>
-        /// <returns></returns>
         public Task<DateTimeOffset> GetLockoutEndDateAsync(TUser user)
         {
+            // TODO: Do we need to query the database?
             return
                 Task.FromResult(user.LockoutEndDateUtc.HasValue
                     ? new DateTimeOffset(DateTime.SpecifyKind(user.LockoutEndDateUtc.Value, DateTimeKind.Utc))
                     : new DateTimeOffset());
         }
 
-
-        /// <summary>
-        /// Set user lockout end date
-        /// </summary>
-        /// <param name="user"></param>
-        /// <param name="lockoutEnd"></param>
-        /// <returns></returns>
         public Task SetLockoutEndDateAsync(TUser user, DateTimeOffset lockoutEnd)
         {
             user.LockoutEndDateUtc = lockoutEnd.UtcDateTime;
-            UserTable.Update(user);
 
-            return Task.FromResult(0);
+            return UserTable.Update(user);
         }
 
-        /// <summary>
-        /// Increment failed access count
-        /// </summary>
-        /// <param name="user"></param>
-        /// <returns></returns>
-        public Task<int> IncrementAccessFailedCountAsync(TUser user)
+        public async Task<int> IncrementAccessFailedCountAsync(TUser user)
         {
             user.AccessFailedCount++;
-            UserTable.Update(user);
 
-            return Task.FromResult(user.AccessFailedCount);
+            await UserTable.Update(user);
+
+            return user.AccessFailedCount;
         }
 
-        /// <summary>
-        /// Reset failed access count
-        /// </summary>
-        /// <param name="user"></param>
-        /// <returns></returns>
         public Task ResetAccessFailedCountAsync(TUser user)
         {
             user.AccessFailedCount = 0;
-            UserTable.Update(user);
 
-            return Task.FromResult(0);
+            return UserTable.Update(user);
         }
 
-        /// <summary>
-        /// Get failed access count
-        /// </summary>
-        /// <param name="user"></param>
-        /// <returns></returns>
         public Task<int> GetAccessFailedCountAsync(TUser user)
         {
+            // TODO: Do we need to query the database?
             return Task.FromResult(user.AccessFailedCount);
         }
 
-        /// <summary>
-        /// Get if lockout is enabled for the user
-        /// </summary>
-        /// <param name="user"></param>
-        /// <returns></returns>
         public Task<bool> GetLockoutEnabledAsync(TUser user)
         {
+            // TODO: Do we need to query the database?
             return Task.FromResult(user.LockoutEnabled);
         }
 
-        /// <summary>
-        /// Set lockout enabled for user
-        /// </summary>
-        /// <param name="user"></param>
-        /// <param name="enabled"></param>
-        /// <returns></returns>
         public Task SetLockoutEnabledAsync(TUser user, bool enabled)
         {
             user.LockoutEnabled = enabled;
-            UserTable.Update(user);
 
-            return Task.FromResult(0);
+            return UserTable.Update(user);
         }
     }
 }

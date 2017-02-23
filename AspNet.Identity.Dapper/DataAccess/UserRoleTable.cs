@@ -2,6 +2,7 @@
 using Dapper;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 
 namespace AspNet.Identity.Dapper
 {
@@ -10,6 +11,8 @@ namespace AspNet.Identity.Dapper
     /// </summary>
     public class UserRolesTable
     {
+        private const string UserRolesTableName = "User_Role";
+
         private IDbConnectionFactory DbConnectionFactory { get; }
 
         public UserRolesTable(IDbConnectionFactory dbConnectionFactory)
@@ -17,45 +20,36 @@ namespace AspNet.Identity.Dapper
             DbConnectionFactory = dbConnectionFactory;
         }
 
-        /// <summary>
-        /// Returns a list of user's roles
-        /// </summary>
-        /// <param name="userId">The user's id</param>
-        /// <returns></returns>
-        public List<string> FindByUserId(int memberId)
+        public async Task Insert(IdentityMember member, int roleId)
         {
-            using (var connection = DbConnectionFactory.GetOpenConnection())
+            using (var connection = await DbConnectionFactory.GetOpenConnectionAsync())
             {
-                return connection.Query<string>("Select Role.Name from MemberRole, Role where MemberRole.MemberId=@MemberId and MemberRole.RoleId = Role.Id", new { MemberId = memberId })
-                .ToList();
+                await connection.ExecuteAsync($@"
+                    Insert into {UserRolesTableName} (UserId, RoleId) values (@userId, @roleId",
+                    new { userId = member.Id, roleId = roleId }
+                );
             }
         }
 
-        /// <summary>
-        /// Deletes all roles from a user in the UserRoles table
-        /// </summary>
-        /// <param name="userId">The user's id</param>
-        /// <returns></returns>
-        public void Delete(int memberId)
+        public async Task<IEnumerable<string>> FindByUserId(int userId)
         {
-            using (var connection = DbConnectionFactory.GetOpenConnection())
+            using (var connection = await DbConnectionFactory.GetOpenConnectionAsync())
             {
-                connection.Execute(@"Delete from MemberRole where Id = @MemberId", new { MemberId = memberId });
+                return await connection.QueryAsync<string>($@"
+                    Select r.Name
+                    from {UserRolesTableName} ur
+                    INNER JOIN AspNetRoles r ON ur.RoleId = r.Id
+                    where ur.UserId=@UserId",
+                    new { UserId = userId }
+                );
             }
         }
 
-        /// <summary>
-        /// Inserts a new role for a user in the UserRoles table
-        /// </summary>
-        /// <param name="user">The User</param>
-        /// <param name="roleId">The Role's id</param>
-        /// <returns></returns>
-        public void Insert(IdentityMember member, int roleId)
+        public async Task Delete(int userId)
         {
-            using (var connection = DbConnectionFactory.GetOpenConnection())
+            using (var connection = await DbConnectionFactory.GetOpenConnectionAsync())
             {
-                connection.Execute(@"Insert into AspNetUserRoles (UserId, RoleId) values (@userId, @roleId",
-                new { userId = member.Id, roleId = roleId });
+                connection.ExecuteAsync(@"Delete from MemberRole where Id = @MemberId", new { MemberId = userId });
             }
         }
     }

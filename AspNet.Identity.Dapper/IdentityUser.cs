@@ -4,29 +4,10 @@ using System;
 namespace AspNet.Identity.Dapper
 {
     /// <summary>
-    /// Class that implements the ASP.NET Identity
-    /// IUser interface 
+    /// Implements the <see cref="IUser"/> ASP.NET Identity interface.
     /// </summary>
     public class IdentityMember : IUser<int>
     {
-        /// <summary>
-        /// Default constructor 
-        /// </summary>
-        public IdentityMember()
-        {
-          //  Id = Guid.NewGuid().ToString();
-        }
-
-        /// <summary>
-        /// Constructor that takes user name as argument
-        /// </summary>
-        /// <param name="userName"></param>
-        public IdentityMember(string userName)
-            : this()
-        {
-            UserName = userName;
-        }
-
         /// <summary>
         /// User ID
         /// </summary>

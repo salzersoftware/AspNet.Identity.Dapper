@@ -29,35 +29,7 @@ namespace AspNet.Identity.Dapper.Store
                 throw new ArgumentNullException(nameof(role));
             }
 
-            RoleTable.Insert(role);
-
-            return Task.FromResult<object>(null);
-        }
-
-        public Task DeleteAsync(TRole role)
-        {
-            if (role == null)
-            {
-                throw new ArgumentNullException(nameof(role));
-            }
-
-            RoleTable.Delete(role.Id);
-
-            return Task.FromResult<Object>(null);
-        }
-
-        public Task<TRole> FindByIdAsync(int roleId)
-        {
-            TRole result = RoleTable.GetRoleById(roleId) as TRole;
-
-            return Task.FromResult<TRole>(result);
-        }
-
-        public Task<TRole> FindByNameAsync(string roleName)
-        {
-            TRole result = RoleTable.GetRoleByName(roleName) as TRole;
-
-            return Task.FromResult<TRole>(result);
+            return RoleTable.Insert(role);
         }
 
         public Task UpdateAsync(TRole role)
@@ -67,9 +39,31 @@ namespace AspNet.Identity.Dapper.Store
                 throw new ArgumentNullException(nameof(role));
             }
 
-            RoleTable.Update(role);
+            return RoleTable.Update(role);
+        }
 
-            return Task.FromResult<Object>(null);
+        public Task DeleteAsync(TRole role)
+        {
+            if (role == null)
+            {
+                throw new ArgumentNullException(nameof(role));
+            }
+
+            return RoleTable.Delete(role.Id);
+        }
+
+        public async Task<TRole> FindByIdAsync(int roleId)
+        {
+            var role = await RoleTable.GetRoleById(roleId) as TRole;
+
+            return role;
+        }
+
+        public Task<TRole> FindByNameAsync(string roleName)
+        {
+            TRole result = RoleTable.GetRoleByName(roleName) as TRole;
+
+            return Task.FromResult<TRole>(result);
         }
 
         public void Dispose()

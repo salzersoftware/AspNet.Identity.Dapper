@@ -1,7 +1,11 @@
 ﻿using AspNet.Identity.Dapper.Connection.Interfaces;
 using Dapper;
 using System.Collections.Generic;
+using System.Data.SqlClient;
 using System.Linq;
+using System.Threading.Tasks;
+using System;
+using AspNet.Identity.Dapper.DataAccess.Constants;
 
 namespace AspNet.Identity.Dapper
 {
@@ -18,179 +22,192 @@ namespace AspNet.Identity.Dapper
             DbConnectionFactory = dbConnectionFactory;
         }
 
-        /// <summary>
-        /// Returns the Member's name given a Member id
-        /// </summary>
-        /// <param name="memberId"></param>
-        /// <returns></returns>
-        public string GetUserName(int memberId)
+        public async Task<TUser> GetUserById(int userId)
         {
-            using (var connection = DbConnectionFactory.GetOpenConnection())
+            using (var connection = await DbConnectionFactory.GetOpenConnectionAsync())
             {
-                return connection.ExecuteScalar<string>("Select Name from Member where Id=@MemberId", new { MemberId = memberId });
+                TUser user =
+                    await connection.QueryFirstOrDefaultAsync<TUser>($@"
+                        SELECT *
+                        FROM [{TableConstants.UserTable}]
+                        WHERE Id=@UserId",
+                        new
+                        {
+                            UserId = userId
+                        }
+                    );
+
+                return user;
             }
         }
 
-        /// <summary>
-        /// Returns a Member ID given a Member name
-        /// </summary>
-        /// <param name="userName">The Member's name</param>
-        /// <returns></returns>
-        public int GetmemberId(string userName)
+        public async Task<TUser> GetUserByName(string userName)
         {
-            using (var connection = DbConnectionFactory.GetOpenConnection())
+            using (SqlConnection connection = await DbConnectionFactory.GetOpenConnectionAsync())
             {
-                return connection.ExecuteScalar<int>("Select Id from Member where UserName=@UserName", new { UserName = userName });
+                TUser user = 
+                    await connection.QueryFirstOrDefaultAsync<TUser>($@"
+                        SELECT *
+                        FROM [{TableConstants.UserTable}]
+                        WHERE UserName=@UserName",
+                        new
+                        {
+                            UserName = userName
+                        }
+                    );
+
+                return user;
             }
         }
 
-        /// <summary>
-        /// Returns an TUser given the Member's id
-        /// </summary>
-        /// <param name="memberId">The Member's id</param>
-        /// <returns></returns>
-        public TUser GetUserById(int memberId)
+        public async Task<TUser> GetUserByEmail(string email)
         {
-            using (var connection = DbConnectionFactory.GetOpenConnection())
+            using (SqlConnection connection = await DbConnectionFactory.GetOpenConnectionAsync())
             {
-                return connection.Query<TUser>("Select * from Member where Id=@MemberId", new { MemberId = memberId })
-                .FirstOrDefault();
+                TUser user =
+                    await connection.QueryFirstOrDefaultAsync<TUser>($@"
+                        SELECT *
+                        FROM [{TableConstants.UserTable}]
+                        WHERE Email=@Email",
+                        new
+                        {
+                            Email = email
+                        }
+                    );
+
+                return user;
             }
         }
 
-        /// <summary>
-        /// Returns a list of TUser instances given a Member name
-        /// </summary>
-        /// <param name="userName">Member's name</param>
-        /// <returns></returns>
-        public List<TUser> GetUserByName(string userName)
+        public async Task<string> GetPasswordHash(int memberId)
         {
-            using (var connection = DbConnectionFactory.GetOpenConnection())
+            using (var connection = await DbConnectionFactory.GetOpenConnectionAsync())
             {
-                return connection.Query<TUser>("Select * from Member where UserName=@UserName", new { UserName = userName })
-                .ToList();
+                string passwordHash =
+                    await connection.ExecuteScalarAsync<string>($@"
+                        SELECT PasswordHash
+                        FROM [{TableConstants.UserTable}]
+                        WHERE Id = @MemberId",
+                        new
+                        {
+                            MemberId = memberId
+                        }
+                    );
+
+                return passwordHash;
             }
         }
 
-        public List<TUser> GetUserByEmail(string email)
+        public async Task SetPasswordHash(int userId, string passwordHash)
         {
-            return null;
-        }
-
-        /// <summary>
-        /// Return the Member's password hash
-        /// </summary>
-        /// <param name="memberId">The Member's id</param>
-        /// <returns></returns>
-        public string GetPasswordHash(int memberId)
-        {
-            using (var connection = DbConnectionFactory.GetOpenConnection())
+            using (var connection = await DbConnectionFactory.GetOpenConnectionAsync())
             {
-                return connection.ExecuteScalar<string>("Select PasswordHash from Member where Id = @MemberId", new { MemberId = memberId });
-            }
-        }
-
-        /// <summary>
-        /// Sets the Member's password hash
-        /// </summary>
-        /// <param name="memberId"></param>
-        /// <param name="passwordHash"></param>
-        /// <returns></returns>
-        public void SetPasswordHash(int memberId, string passwordHash)
-        {
-            using (var connection = DbConnectionFactory.GetOpenConnection())
-            {
-                connection.Execute(@"
+                await connection.ExecuteAsync($@"
                     UPDATE
-                        Member
+                        [{TableConstants.UserTable}]
                     SET
-                        PasswordHash = @pwdHash
+                        PasswordHash = @PasswordHash
                     WHERE
-                        Id = @Id", new { pwdHash = passwordHash, Id = memberId });
+                        Id = @Id",
+                    new
+                    {
+                        PasswordHash = passwordHash,
+                        Id = userId
+                    }
+                );
             }
         }
 
-        /// <summary>
-        /// Returns the Member's security stamp
-        /// </summary>
-        /// <param name="memberId"></param>
-        /// <returns></returns>
-        public string GetSecurityStamp(int memberId)
+        public async Task<int> Insert(TUser member)
         {
-            using (var connection = DbConnectionFactory.GetOpenConnection())
+            using (var connection = await DbConnectionFactory.GetOpenConnectionAsync())
             {
-                return connection.ExecuteScalar<string>("Select SecurityStamp from Member where Id = @MemberId", new { MemberId = memberId });
+                int autoIncrementId =
+                    await connection.ExecuteScalarAsync<int>($@"
+                        INSERT INTO [{TableConstants.UserTable}]
+                        (
+                            UserName,
+                            PasswordHash,
+                            SecurityStamp,
+                            Email,
+                            EmailConfirmed,
+                            PhoneNumber,
+                            PhoneNumberConfirmed,
+                            AccessFailedCount,
+                            LockoutEnabled,
+                            LockoutEndDateUtc,
+                            TwoFactorEnabled
+                        )
+                        VALUES
+                        (
+                            @name,
+                            @pwdHash,
+                            @SecStamp,
+                            @email,
+                            @emailconfirmed,
+                            @phonenumber,
+                            @phonenumberconfirmed,
+                            @accesscount,
+                            @lockoutenabled,
+                            @lockoutenddate,
+                            @twofactorenabled
+                        )
+
+                        SELECT Cast(SCOPE_IDENTITY() as int);",
+                        new
+                        {
+                            name = member.UserName,
+                            pwdHash = member.PasswordHash,
+                            SecStamp = member.SecurityStamp,
+                            email = member.Email,
+                            emailconfirmed = member.EmailConfirmed,
+                            phonenumber = member.PhoneNumber,
+                            phonenumberconfirmed = member.PhoneNumberConfirmed,
+                            accesscount = member.AccessFailedCount,
+                            lockoutenabled = member.LockoutEnabled,
+                            lockoutenddate = member.LockoutEndDateUtc,
+                            twofactorenabled = member.TwoFactorEnabled
+                        }
+                    );
+
+                return autoIncrementId;
             }
         }
 
-        /// <summary>
-        /// Inserts a new Member in the Users table
-        /// </summary>
-        /// <param name="Member"></param>
-        /// <returns></returns>
-        public void Insert(TUser member)
+        public async Task Delete(TUser user)
         {
-            using (var connection = DbConnectionFactory.GetOpenConnection())
+            using (var connection = await DbConnectionFactory.GetOpenConnectionAsync())
             {
-                var id = connection.ExecuteScalar<int>(@"Insert into Member
-                                    (UserName,  PasswordHash, SecurityStamp,Email,EmailConfirmed,PhoneNumber,PhoneNumberConfirmed, AccessFailedCount,LockoutEnabled,LockoutEndDateUtc,TwoFactorEnabled)
-                            values  (@name, @pwdHash, @SecStamp,@email,@emailconfirmed,@phonenumber,@phonenumberconfirmed,@accesscount,@lockoutenabled,@lockoutenddate,@twofactorenabled)
-                            SELECT Cast(SCOPE_IDENTITY() as int)",
-                             new
-                             {
-                                 name = member.UserName,
-                                 pwdHash = member.PasswordHash,
-                                 SecStamp = member.SecurityStamp,
-                                 email = member.Email,
-                                 emailconfirmed = member.EmailConfirmed,
-                                 phonenumber = member.PhoneNumber,
-                                 phonenumberconfirmed = member.PhoneNumberConfirmed,
-                                 accesscount = member.AccessFailedCount,
-                                 lockoutenabled = member.LockoutEnabled,
-                                 lockoutenddate = member.LockoutEndDateUtc,
-                                 twofactorenabled = member.TwoFactorEnabled
-                             });
-                // we need to set the id to the returned identity generated from the db
-                member.Id = id;
+                await connection.ExecuteAsync($@"
+                    DELETE FROM [{TableConstants.UserTable}]
+                    WHERE Id = @UserId",
+                    new
+                    {
+                        UserId = user.Id
+                    }
+                );
             }
         }
 
-        /// <summary>
-        /// Deletes a Member from the Users table
-        /// </summary>
-        /// <param name="memberId">The Member's id</param>
-        /// <returns></returns>
-        private void Delete(int memberId)
+        public async Task Update(TUser member)
         {
-            using (var connection = DbConnectionFactory.GetOpenConnection())
+            using (var connection = await DbConnectionFactory.GetOpenConnectionAsync())
             {
-                connection.Execute(@"Delete from Member where Id = @MemberId", new { MemberId = memberId });
-            }
-        }
-
-        /// <summary>
-        /// Deletes a Member from the Users table
-        /// </summary>
-        /// <param name="Member"></param>
-        /// <returns></returns>
-        public void Delete(TUser Member)
-        {
-            Delete(Member.Id);
-        }
-
-        /// <summary>
-        /// Updates a Member in the Users table
-        /// </summary>
-        /// <param name="Member"></param>
-        /// <returns></returns>
-        public void Update(TUser member)
-        {
-            using (var connection = DbConnectionFactory.GetOpenConnection())
-            {
-                connection.Execute(@"
-                    Update AspNetUsers set UserName = @userName, PasswordHash = @pswHash, SecurityStamp = @secStamp, 
-                    Email=@email, EmailConfirmed=@emailconfirmed, PhoneNumber=@phonenumber, PhoneNumberConfirmed=@phonenumberconfirmed,
-                    AccessFailedCount=@accesscount, LockoutEnabled=@lockoutenabled, LockoutEndDateUtc=@lockoutenddate, TwoFactorEnabled=@twofactorenabled  
+                await connection.ExecuteAsync($@"
+                    UPDATE
+                        [{TableConstants.UserTable}]
+                    SET
+                        UserName=@userName,
+                        PasswordHash=@pswHash,
+                        SecurityStamp = @secStamp, 
+                        Email=@email,
+                        EmailConfirmed=@emailconfirmed,
+                        PhoneNumber=@phonenumber,
+                        PhoneNumberConfirmed=@phonenumberconfirmed,
+                        AccessFailedCount=@accesscount,
+                        LockoutEnabled=@lockoutenabled,
+                        LockoutEndDateUtc=@lockoutenddate,
+                        TwoFactorEnabled=@twofactorenabled  
                     WHERE Id = @memberId",
                     new
                     {

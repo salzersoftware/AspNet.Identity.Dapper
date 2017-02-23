@@ -1,5 +1,8 @@
 ﻿using AspNet.Identity.Dapper.Connection.Interfaces;
+using AspNet.Identity.Dapper.DataAccess.Constants;
 using Dapper;
+using Microsoft.AspNet.Identity;
+using System.Threading.Tasks;
 
 namespace AspNet.Identity.Dapper
 {
@@ -15,100 +18,26 @@ namespace AspNet.Identity.Dapper
             DbConnectionFactory = dbConnectionFactory;
         }
 
-        /// <summary>
-        /// Deltes a role from the Roles table
-        /// </summary>
-        /// <param name="roleId">The role Id</param>
-        /// <returns></returns>
-        public void Delete(int roleId)
+        public async Task Insert(IdentityRole role)
         {
-            using (var connection = DbConnectionFactory.GetOpenConnection())
+            using (var connection = await DbConnectionFactory.GetOpenConnectionAsync())
             {
-                connection.Execute(@"Delete from Role where Id = @id", new { id = roleId });
-            }                
-        }
-
-        /// <summary>
-        /// Inserts a new Role in the Roles table
-        /// </summary>
-        /// <param name="roleName">The role's name</param>
-        /// <returns></returns>
-        public void Insert(IdentityRole role)
-        {
-            using (var connection = DbConnectionFactory.GetOpenConnection())
-            {
-                connection.Execute(@"Insert into Role (Name) values (@name)", new { name = role.Name });
+                await connection.ExecuteAsync($@"
+                    INSERT INTO [{TableConstants.RoleTable}] (Name) VALUES (@name)",
+                    new
+                    {
+                        name = role.Name
+                    }
+                );
             }
         }
 
-        /// <summary>
-        /// Returns a role name given the roleId
-        /// </summary>
-        /// <param name="roleId">The role Id</param>
-        /// <returns>Role name</returns>
-        public string GetRoleName(int roleId)
+        public async Task Update(IdentityRole role)
         {
-            using (var connection = DbConnectionFactory.GetOpenConnection())
+            using (var connection = await DbConnectionFactory.GetOpenConnectionAsync())
             {
-                return connection.ExecuteScalar<string>("Select Name from Role where Id=@id", new { id = roleId });
-            }                
-        }
-
-        /// <summary>
-        /// Returns the role Id given a role name
-        /// </summary>
-        /// <param name="roleName">Role's name</param>
-        /// <returns>Role's Id</returns>
-        public int GetRoleId(string roleName)
-        {
-            using (var connection = DbConnectionFactory.GetOpenConnection())
-            {
-                return connection.ExecuteScalar<int>("Select Id from Role where Name=@name", new { name = roleName });
-            }                
-        }
-
-        /// <summary>
-        /// Gets the IdentityRole given the role Id
-        /// </summary>
-        /// <param name="roleId"></param>
-        /// <returns></returns>
-        public IdentityRole GetRoleById(int roleId)
-        {
-            var roleName = GetRoleName(roleId);
-            IdentityRole role = null;
-
-            if (roleName != null)
-            {
-                role = new IdentityRole(roleName, roleId);
-            }
-
-            return role;
-        }
-
-        /// <summary>
-        /// Gets the IdentityRole given the role name
-        /// </summary>
-        /// <param name="roleName"></param>
-        /// <returns></returns>
-        public IdentityRole GetRoleByName(string roleName)
-        {
-            var roleId = GetRoleId(roleName);
-            IdentityRole role = null;
-
-            if (roleId > 0)
-            {
-                role = new IdentityRole(roleName, roleId);
-            }
-
-            return role;
-        }
-
-        public void Update(IdentityRole role)
-        {
-            using (var connection = DbConnectionFactory.GetOpenConnection())
-            {
-                connection.Execute(@"
-                    UPDATE Role
+                await connection.ExecuteAsync($@"
+                    UPDATE [{TableConstants.RoleTable}]
                     SET
                         Name = @name
                     WHERE
@@ -119,6 +48,60 @@ namespace AspNet.Identity.Dapper
                         id = role.Id
                     }
                 );
+            }
+        }
+
+        public async Task Delete(int roleId)
+        {
+            using (var connection = await DbConnectionFactory.GetOpenConnectionAsync())
+            {
+                await connection.ExecuteAsync($@"DELETE FROM [{TableConstants.RoleTable}] WHERE Id = @id", new { id = roleId });
+            }                
+        }
+
+        public string GetRoleName(int roleId)
+        {
+            using (var connection = DbConnectionFactory.GetOpenConnection())
+            {
+                return connection.ExecuteScalar<string>($"SELECT Name FROM [{TableConstants.RoleTable}] WHERE Id=@id", new { id = roleId });
+            }                
+        }
+
+        public async Task<IRole<int>> GetRoleById(int roleId)
+        {
+            using (var connection = await DbConnectionFactory.GetOpenConnectionAsync())
+            {
+                IRole<int> role = 
+                    await connection.QueryFirstOrDefaultAsync<IRole<int>>($@"
+                        SELECT Id, Name
+                        FROM [{TableConstants.RoleTable}]
+                        WHERE Id=@RoleId",
+                        new
+                        {
+                            RoleId = roleId
+                        }
+                    );
+
+                return role;
+            }
+        }
+
+        public async Task<IRole<int>> GetRoleByName(string roleName)
+        {
+            using (var connection = await DbConnectionFactory.GetOpenConnectionAsync())
+            {
+                IRole<int> role =
+                    await connection.QueryFirstOrDefaultAsync<IRole<int>>($@"
+                        SELECT Id, Name
+                        FROM [{TableConstants.RoleTable}]
+                        WHERE Id=@RoleName",
+                        new
+                        {
+                            RoleName = roleName
+                        }
+                    );
+
+                return role;
             }
         }
     }
