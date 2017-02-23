@@ -232,12 +232,6 @@ namespace AspNet.Identity.Dapper.Store
             return Task.FromResult<Object>(null);
         }
 
-        /// <summary>
-        /// Inserts a entry in the UserRoles table
-        /// </summary>
-        /// <param name="user">User to have role added</param>
-        /// <param name="roleName">Name of the role to be added to user</param>
-        /// <returns></returns>
         public async Task AddToRoleAsync(TUser user, string roleName)
         {
             if (user == null)
@@ -245,24 +239,14 @@ namespace AspNet.Identity.Dapper.Store
                 throw new ArgumentNullException(nameof(user));
             }
 
-            if (string.IsNullOrEmpty(roleName))
-            {
-                throw new ArgumentException("Argument cannot be null or empty: roleName.");
-            }
-
             IRole<int> role = await RoleTable.GetRoleByName(roleName);
 
             if(role != null)
             {
-                UserRolesTable.Insert(user, role.Id);
+                await UserRolesTable.Insert(user, role.Id);
             }
         }
 
-        /// <summary>
-        /// Returns the roles for a given TUser
-        /// </summary>
-        /// <param name="user"></param>
-        /// <returns></returns>
         public async Task<IList<string>> GetRolesAsync(TUser user)
         {
             if (user == null)
@@ -270,7 +254,7 @@ namespace AspNet.Identity.Dapper.Store
                 throw new ArgumentNullException(nameof(user));
             }
 
-            var roleNames = await UserRolesTable.FindByUserId(user.Id);
+            IEnumerable<string> roleNames = await UserRolesTable.FindByUserId(user.Id);
 
             return roleNames.ToList();
         }
